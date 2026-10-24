@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#101827">
+<title>Nexus AI Workspace</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #101827;
+  --panel: #1b2739;
+  --text: #f2f5fc;
+  --muted: #aab7cc;
+  --accent: #8b9cff;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font-family: system-ui, sans-serif; line-height: 1.5;
+}
+header {
+  padding: 22px 18px; background: #172236;
+  border-bottom: 1px solid #344156;
+}
+header h1 { margin: 0; font-size: 25px; }
+header p { color: var(--muted); margin-bottom: 0; }
+main { max-width: 760px; margin: auto; padding: 18px; }
+nav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+button, input, textarea {
+  font: inherit; border-radius: 10px; padding: 11px;
+}
+button { cursor: pointer; border: 0; background: var(--accent); color: #11172a; font-weight: 650; }
+nav button { background: var(--panel); color: var(--text); }
+nav button.active { background: var(--accent); color: #11172a; }
+.panel {
+  background: var(--panel); border: 1px solid #344156;
+  border-radius: 15px; padding: 16px; margin-bottom: 15px;
+}
+h2 { font-size: 19px; margin-top: 0; }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.stat strong { display: block; font-size: 28px; }
+label { display: block; margin-bottom: 6px; color: var(--muted); }
+input, textarea {
+  width: 100%; background: #101827; color: var(--text);
+  border: 1px solid #46536a; margin-bottom: 10px;
+}
+textarea { min-height: 130px; resize: vertical; }
+form button { width: 100%; }
+.task {
+  display: flex; gap: 10px; align-items: center;
+  border-top: 1px solid #344156; padding: 12px 0;
+  overflow-wrap: anywhere;
+}
+.task input { width: auto; margin: 0; }
+.task span { flex: 1; }
+.done { text-decoration: line-through; color: var(--muted); }
+.small { color: var(--muted); font-size: 13px; }
+[hidden] { display: none !important; }
+footer { text-align: center; color: var(--muted); padding: 22px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>✦ Nexus Workspace</h1>
+  <p>Your personal space to plan, focus and automate.</p>
+</header>
+
+<main>
+  <nav aria-label="Workspace sections">
+    <button class="active" data-tab="dashboard">Home</button>
+    <button data-tab="tasks">Tasks</button>
+    <button data-tab="notes">Notes</button>
+    <button data-tab="automation">Automation</button>
+  </nav>
+
+  <section id="dashboard">
+    <div class="panel">
+      <h2>Welcome to your workspace</h2>
+      <p>Small steps. Better systems. More progress.</p>
+    </div>
+    <div class="stats">
+      <div class="panel stat">
+        <span class="small">Total tasks</span>
+        <strong id="total">0</strong>
+      </div>
+      <div class="panel stat">
+        <span class="small">Completed</span>
+        <strong id="completed">0</strong>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Quick task</h2>
+      <form id="quickForm">
+        <label for="quickTask">What do you want to do?</label>
+        <input id="quickTask" maxlength="160" required
+          placeholder="e.g. Learn JavaScript">
+        <button>Add task</button>
+      </form>
+    </div>
+    <div class="panel">
+      <h2>Next actions</h2>
+      <div id="preview"></div>
+    </div>
+  </section>
+
+  <section id="tasks" hidden>
+    <div class="panel">
+      <h2>My tasks</h2>
+      <form id="taskForm">
+        <label for="taskInput">New task</label>
+        <input id="taskInput" maxlength="160" required
+          placeholder="Enter a task">
+        <button>Add task</button>
+      </form>
+      <div id="taskList"></div>
+    </div>
+  </section>
+
+  <section id="notes" hidden>
+    <div class="panel">
+      <h2>My notes</h2>
+      <label for="noteText">Write your ideas</label>
+      <textarea id="noteText" maxlength="10000"
+        placeholder="Ideas, plans, reminders..."></textarea>
+      <button id="saveNotes">Save notes</button>
+      <p id="noteStatus" class="small" aria-live="polite"></p>
+    </div>
+  </section>
+
+  <section id="automation" hidden>
+    <div class="panel">
+      <h2>Workflow automation</h2>
+      <p><b>Rule:</b> When you add a task, create a matching
+      follow-up checklist item.</p>
+      <p class="small">This is a local demo, not an AI agent.
+      The rule runs in this browser.</p>
+      <label>
+        <input type="checkbox" id="automationToggle" checked>
+        Enable task follow-up rule
+      </label>
+      <p id="automationStatus" aria-live="polite"></p>
+      <h2>Activity log</h2>
+      <div id="activity" class="small">No activity yet.</div>
+    </div>
+  </section>
+  <p class="small">Prototype v0.1 · Data stays in this browser.</p>
+</main>
+<footer>Built step by step with Nexus Workspace.</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const KEY = "nexus-workspace-v1";
+
+let state = { tasks: [], notes: "", activity: [] };
+
+try {
+  const saved = JSON.parse(localStorage.getItem(KEY) || "null");
+  if (saved && Array.isArray(saved.tasks)) {
+    state.tasks = saved.tasks.filter(t =>
+      t && typeof t.id === "string" &&
+      typeof t.text === "string"
+    );
+    state.notes = typeof saved.notes === "string" ? saved.notes : "";
+    state.activity = Array.isArray(saved.activity)
+      ? saved.activity.filter(x => typeof x === "string").slice(0, 12)
+      : [];
+  }
+} catch (e) {
+  console.warn("Saved data could not be loaded.");
+}
+
+function persist() {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(state));
+    return true;
+  } catch (e) {
+    alert("Could not save data. Check browser storage.");
+    return false;
+  }
+}
+
+function log(message) {
+  state.activity.unshift(new Date().toLocaleTimeString() + " — " + message);
+  state.activity = state.activity.slice(0, 8);
+}
+
+function addTask(text) {
+  text = text.trim();
+  if (!text) return;
+  state.tasks.unshift({
+    id: Date.now().toString() + Math.random().toString(16).slice(2),
+    text, done: false
+  });
+  log("Task created: " + text);
+  if ($("automationToggle").checked) {
+    state.tasks.unshift({
+      id: Date.now().toString() + Math.random().toString(16).slice(2),
+      text: "Follow up: " + text,
+      done: false
+    });
+    log("Automation created a follow-up item.");
+  }
+  persist();
+  render();
+}
+
+function render() {
+  $("total").textContent = state.tasks.length;
+  $("completed").textContent = state.tasks.filter(t => t.done).length;
+  $("taskList").replaceChildren();
+  $("preview").replaceChildren();
+
+  state.tasks.forEach((task, index) => {
+    const row = document.createElement("div");
+    row.className = "task";
+    const check = document.createElement("input");
+    check.type = "checkbox";
+    check.checked = task.done;
+    check.setAttribute("aria-label", "Complete " + task.text);
+    check.addEventListener("change", () => {
+      task.done = check.checked;
+      log((task.done ? "Completed: " : "Reopened: ") + task.text);
+      persist(); render();
+    });
+
+    const span = document.createElement("span");
+    span.textContent = task.text;
+    if (task.done) span.className = "done";
+    row.append(check, span);
+
+    const del = document.createElement("button");
+    del.textContent = "×";
+    del.setAttribute("aria-label", "Delete " + task.text);
+    del.addEventListener("click", () => {
+      state.tasks = state.tasks.filter(t => t.id !== task.id);
+      log("Task deleted.");
+      persist(); render();
+    });
+    row.append(del);
+    $("taskList").append(row);
+
+    if (index < 3 && !task.done) {
+      const item = document.createElement("p");
+      item.textContent = "• " + task.text;
+      $("preview").append(item);
+    }
+  });
+
+  if (!state.tasks.length) {
+    $("taskList").textContent = "No tasks yet. Add your first task!";
+    $("preview").textContent = "Your next actions will appear here.";
+  }
+  $("activity").replaceChildren();
+  if (!state.activity.length) {
+    $("activity").textContent = "No activity yet.";
+  } else {
+    state.activity.forEach(entry => {
+      const p = document.createElement("p");
+      p.textContent = entry;
+      $("activity").append(p);
+    });
+  }
+  $("automationStatus").textContent =
+    $("automationToggle").checked ? "Rule is enabled." : "Rule is paused.";
+}
+
+document.querySelectorAll("[data-tab]").forEach(button => {
+  button.addEventListener("click", () => {
+    document.querySelectorAll("[data-tab]").forEach(b =>
+      b.classList.toggle("active", b === button)
+    );
+    ["dashboard", "tasks", "notes", "automation"].forEach(id => {
+      $(id).hidden = id !== button.dataset.tab;
+    });
+  });
+});
+
+function submitTask(event, inputId) {
+  event.preventDefault();
+  addTask($(inputId).value);
+  $(inputId).value = "";
+}
+
+$("quickForm").addEventListener("submit", e => submitTask(e, "quickTask"));
+$("taskForm").addEventListener("submit", e => submitTask(e, "taskInput"));
+
+$("saveNotes").addEventListener("click", () => {
+  state.notes = $("noteText").value;
+  if (persist()) $("noteStatus").textContent = "Notes saved on this device.";
+});
+
+$("automationToggle").addEventListener("change", () => {
+  log($("automationToggle").checked ? "Automation enabled." : "Automation paused.");
+  persist(); render();
+});
+
+$("noteText").value = state.notes;
+render();
+</script>
+</body>
+</html>
+
