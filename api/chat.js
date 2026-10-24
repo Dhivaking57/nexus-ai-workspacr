@@ -61,11 +61,7 @@ module.exports = async function handler(req, res) {
     const data = await response.json();
 
     if (!response.ok) {
-      console.error(
-  "Gemini API request failed:",
-  response.status,
-  data.error || data
-);
+      console.error("Gemini API request failed:",response.status, data.error || data);
       return res.status(502).json({
         error: "The AI service could not complete your request."
       });
