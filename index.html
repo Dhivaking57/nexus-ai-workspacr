@@ -758,5 +758,210 @@ $("today").textContent = new Intl.DateTimeFormat(undefined, {
 $("noteText").value = state.notes;
 render();
 </script>
+
+<style>
+  #nexus-ai-launcher {
+    position: fixed;
+    right: 18px;
+    bottom: 24px;
+    z-index: 9999;
+    border: 0;
+    border-radius: 28px;
+    padding: 14px 20px;
+    background: #8b5cf6;
+    color: white;
+    font-weight: 700;
+    font-size: 15px;
+    box-shadow: 0 5px 24px #0005;
+  }
+
+  #nexus-ai-panel {
+    display: none;
+    position: fixed;
+    right: 12px;
+    bottom: 85px;
+    z-index: 9998;
+    width: min(360px, calc(100vw - 24px));
+    height: min(480px, calc(100dvh - 120px));
+    background: #171525;
+    color: #f5f3ff;
+    border: 1px solid #554477;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 10px 40px #0008;
+    font-family: system-ui, sans-serif;
+  }
+
+  #nexus-ai-panel.open {
+    display: flex;
+    flex-direction: column;
+  }
+
+  #nexus-ai-header {
+    padding: 16px;
+    background: #28203d;
+    font-weight: 700;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  #nexus-ai-close {
+    border: 0;
+    background: transparent;
+    color: white;
+    font-size: 22px;
+  }
+
+  #nexus-ai-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .nexus-ai-bubble {
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    border-radius: 12px;
+    background: #29243b;
+  }
+
+  .nexus-ai-user {
+    background: #55408a;
+  }
+
+  #nexus-ai-form {
+    display: flex;
+    gap: 8px;
+    padding: 12px;
+    border-top: 1px solid #393047;
+  }
+
+  #nexus-ai-input {
+    min-width: 0;
+    flex: 1;
+    padding: 11px;
+    border: 1px solid #554477;
+    border-radius: 10px;
+    background: #211d30;
+    color: white;
+    font-size: 14px;
+  }
+
+  #nexus-ai-send {
+    border: 0;
+    border-radius: 10px;
+    padding: 0 14px;
+    background: #8b5cf6;
+    color: white;
+    font-weight: 700;
+  }
+
+  #nexus-ai-send:disabled {
+    opacity: 0.6;
+  }
+</style>
+
+<button id="nexus-ai-launcher" type="button">
+  ✦ Nexus AI
+</button>
+
+<section id="nexus-ai-panel" aria-label="Nexus AI chat">
+  <header id="nexus-ai-header">
+    <span>✦ Nexus AI Assistant</span>
+    <button id="nexus-ai-close" type="button"
+      aria-label="Close chat">×</button>
+  </header>
+
+  <div id="nexus-ai-messages" aria-live="polite">
+    <div class="nexus-ai-bubble">
+      Hi! I'm Nexus AI. Ask me to plan your work, organize ideas,
+      or break a goal into steps.
+    </div>
+  </div>
+
+  <form id="nexus-ai-form">
+    <input id="nexus-ai-input" type="text"
+      placeholder="Ask Nexus AI..." maxlength="2000"
+      autocomplete="off" required />
+    <button id="nexus-ai-send" type="submit">Send</button>
+  </form>
+</section>
+
+<script>
+(() => {
+  const launcher = document.getElementById("nexus-ai-launcher");
+  const panel = document.getElementById("nexus-ai-panel");
+  const close = document.getElementById("nexus-ai-close");
+  const form = document.getElementById("nexus-ai-form");
+  const input = document.getElementById("nexus-ai-input");
+  const messages = document.getElementById("nexus-ai-messages");
+  const send = document.getElementById("nexus-ai-send");
+
+  launcher.addEventListener("click", () => {
+    panel.classList.toggle("open");
+    if (panel.classList.contains("open")) input.focus();
+  });
+
+  close.addEventListener("click", () => {
+    panel.classList.remove("open");
+  });
+
+  function addMessage(text, isUser = false) {
+    const bubble = document.createElement("div");
+    bubble.className = "nexus-ai-bubble" +
+      (isUser ? " nexus-ai-user" : "");
+    bubble.textContent = text;
+    messages.appendChild(bubble);
+    messages.scrollTop = messages.scrollHeight;
+    return bubble;
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const message = input.value.trim();
+    if (!message || send.disabled) return;
+
+    addMessage(message, true);
+    input.value = "";
+    send.disabled = true;
+    send.textContent = "...";
+
+    const waiting = addMessage("Nexus AI is thinking...");
+
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ message })
+      });
+
+      const data = await response.json();
+      waiting.remove();
+
+      if (!response.ok) {
+        throw new Error(data.error || "AI request failed.");
+      }
+
+      addMessage(data.reply || "No reply received.");
+    } catch (error) {
+      waiting.textContent =
+        "Sorry, I couldn't get a response. " +
+        (error.message || "Please try again.");
+    } finally {
+      send.disabled = false;
+      send.textContent = "Send";
+      input.focus();
+    }
+  });
+})();
+</script>
 </body>
 </html>
